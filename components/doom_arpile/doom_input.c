@@ -1,6 +1,7 @@
 /* Input adapter: Arpile keyboard events → PrBoom D_PostEvent.
  * HID task pushes; the engine drains in I_StartTic via doom_input_poll(). */
 #include <string.h>
+#include <stdbool.h>
 #include "doomtype.h"
 #include "d_event.h"
 #include "g_game.h"

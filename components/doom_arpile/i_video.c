@@ -19,6 +19,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "esp_heap_caps.h"
+#include "esp_cache.h"
 
 #include "ili9488.h"
 #include "arpile_ui_core.h"
@@ -28,12 +29,12 @@ int use_fullscreen = 0;
 int use_doublebuffer = 0;
 
 static uint8_t  *s_pal_fb;      /* 320x240 palette8, written by engine */
-static uint16_t *s_rgb_fb;      /* 320x240 RGB565, converted on frame flip */
+static uint8_t  *s_666_fb;      /* 320x240 packed RGB666, DMA/streamed */
 static volatile bool s_frame_ready;
 static SemaphoreHandle_t s_fb_mux;
 
-/* RGB565 lookup built by I_SetPalette from PLAYPAL */
-static uint16_t s_lut[256];
+/* RGB666 byte-triplet lookup built by I_SetPalette from PLAYPAL */
+static uint8_t s_lut666[256 * 3];
 
 void I_StartTic(void)
 {
@@ -58,12 +59,16 @@ void I_EndDisplay(void) {}
 /* Engine finished a frame: convert palette→RGB565 and mark ready. */
 void I_FinishUpdate(void)
 {
-    if (!s_pal_fb || !s_rgb_fb || !s_fb_mux) {
+    if (!s_pal_fb || !s_666_fb || !s_fb_mux) {
         return;
     }
     xSemaphoreTake(s_fb_mux, portMAX_DELAY);
-    for (int i = 0; i < SCREENWIDTH * SCREENHEIGHT; i++) {
-        s_rgb_fb[i] = s_lut[s_pal_fb[i]];
+    const int n = SCREENWIDTH * SCREENHEIGHT;
+    for (int i = 0; i < n; i++) {
+        const uint8_t *lut = &s_lut666[s_pal_fb[i] * 3];
+        s_666_fb[i * 3]     = lut[0];
+        s_666_fb[i * 3 + 1] = lut[1];
+        s_666_fb[i * 3 + 2] = lut[2];
     }
     xSemaphoreGive(s_fb_mux);
     s_frame_ready = true;
@@ -75,9 +80,10 @@ void I_SetPalette(int pal)
     const byte *palette = W_CacheLumpNum(pplump);
     palette += pal * (3 * 256);
     for (int i = 0; i < 256; i++) {
-        s_lut[i] = ((palette[0] & 0xF8) << 8) |
-                   ((palette[1] & 0xFC) << 3) |
-                   (palette[2] >> 3);
+        /* RGB666: expand 6-bit fields to 8 bits (r<<2|r>>4 pattern) */
+        s_lut666[i * 3]     = (palette[0] << 2) | (palette[0] >> 4);
+        s_lut666[i * 3 + 1] = (palette[1] << 2) | (palette[1] >> 4);
+        s_lut666[i * 3 + 2] = (palette[2] << 2) | (palette[2] >> 4);
         palette += 3;
     }
     W_UnlockLumpNum(pplump);
@@ -92,9 +98,9 @@ void I_PreInitGraphics(void)
         s_pal_fb = heap_caps_malloc(SCREENWIDTH * SCREENHEIGHT,
                                     MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     }
-    if (!s_rgb_fb) {
-        s_rgb_fb = heap_caps_malloc(SCREENWIDTH * SCREENHEIGHT * 2,
-                                    MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!s_666_fb) {
+        s_666_fb = heap_caps_aligned_alloc(64, SCREENWIDTH * SCREENHEIGHT * 3,
+                                           MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     }
 }
 
@@ -144,12 +150,14 @@ void I_UpdateVideoMode(void)
 
 void doom_video_blit(ili9488_t *lcd, const ui_rect_t *dst)
 {
-    if (!s_rgb_fb || lcd == NULL || dst == NULL) {
+    if (!s_666_fb || lcd == NULL || dst == NULL) {
         return;
     }
     xSemaphoreTake(s_fb_mux, portMAX_DELAY);
-    ili9488_draw_pixels(lcd, s_rgb_fb, dst->x, dst->y, dst->w, dst->h,
-                        0, 0, SCREENWIDTH, SCREENHEIGHT, SCREENWIDTH);
+    /* PSRAM is DMA-capable on P4 but cache-backed: push our writes out. */
+    esp_cache_msync((void *)s_666_fb, SCREENWIDTH * SCREENHEIGHT * 3,
+                    ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+    ili9488_blit_rgb666_stream(lcd, s_666_fb, dst->x, dst->y, dst->w, dst->h);
     xSemaphoreGive(s_fb_mux);
 }
 

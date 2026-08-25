@@ -53,6 +53,14 @@ esp_err_t ili9488_fill_rect(ili9488_t *dev, uint16_t x, uint16_t y,
 /** Fill the entire framebuffer with a single 16-bit RGB565 color. */
 esp_err_t ili9488_fill_screen(ili9488_t *dev, uint16_t color);
 
+/** Stream a packed 18-bit RGB666 frame (w*h*3 bytes, row-major, DMA-capable
+ *  and cache-synced memory) into the rectangle at (x,y,w,h). Pipelined DMA:
+ *  queues chunks while previous ones transfer. Added for DOOM integration;
+ *  does not alter any existing driver behaviour. */
+esp_err_t ili9488_blit_rgb666_stream(ili9488_t *dev, const uint8_t *rgb666,
+                                     uint16_t x, uint16_t y,
+                                     uint16_t w, uint16_t h);
+
 /** Blit a sub-window of a packed row-major RGB565 image into the rectangle
  *  at (x,y,w,h). The source sub-window is (src_x, src_y, src_w, src_h) taken
  *  from an image with full row stride `img_w`. */
