@@ -59,7 +59,8 @@ static void late_init_task(void *arg)
         ESP_LOGE(TAG, "SD card init FAILED (0x%x)", serr);
     }
 
-    arpile_file_xfer_start();
+    /* TEMP DIAGNOSTIC: file_xfer disabled - suspected freeze trigger */
+    // arpile_file_xfer_start();
 
     vTaskDelete(NULL);
 }
@@ -67,6 +68,9 @@ static void late_init_task(void *arg)
 void app_main(void)
 {
     ESP_LOGI(TAG, "Arpile 32CDF firmware starting");
+
+    /* TEMP DIAGNOSTIC: visual boot progress markers (console unreliable) */
+    blink_backlight(PIN_LCD_LED, 1, 150);
 
     /* Backlight off until the ILI9488 driver owns it (LED PWM at 100%). */
     gpio_reset_pin(PIN_LCD_LED);
@@ -93,6 +97,7 @@ void app_main(void)
         return;
     }
     ESP_LOGI(TAG, "ILI9488 initialized");
+    blink_backlight(PIN_LCD_LED, 2, 150);   /* TEMP DIAG: LCD OK */
 
     /* Splash: paint the desktop background colour immediately so the panel
      * never sits blank/white while the blocking init steps below run. */

@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include "esp_timer.h"
 
 #include "config.h"
 #include "m_argv.h"
@@ -93,9 +94,9 @@ void I_uSleep(unsigned long usecs)
 
 int I_GetTime_RealTime(void)
 {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return (int)(tv.tv_sec * TICRATE + (tv.tv_usec * TICRATE) / 1000000);
+    /* Monotonic us-since-boot: wall-clock (NTP-synced 2026 epoch) overflows
+     * int when scaled by TICRATE and derails PrBoom's tic scheduler. */
+    return (int)(esp_timer_get_time() * TICRATE / 1000000);
 }
 
 const int displaytime = 0;

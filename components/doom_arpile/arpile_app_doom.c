@@ -32,11 +32,8 @@ static void doom_app_update(arpile_app_ctx_t *ctx)
             return;
         }
     }
-    /* ~25 fps repaint cadence; actual blit happens in render(). */
-    static TickType_t last;
-    TickType_t now = xTaskGetTickCount();
-    if (now - last >= pdMS_TO_TICKS(40)) {
-        last = now;
+    /* Repaint only when the engine produced a new frame. */
+    if (doom_video_take_frame()) {
         arpile_ui_win_redraw(ctx->win);
     }
 }
@@ -61,8 +58,12 @@ static void doom_app_render(arpile_app_ctx_t *ctx, ui_win_t *win)
         return;
     }
     ui_rect_t c = win_client_rect(win);
-    ui_draw_fill_rect(lcd, &c, 0x0000);          /* letterbox base */
-    doom_video_blit(lcd, &c);                    /* scaled frame on top */
+    static bool ever_painted;
+    if (!ever_painted) {
+        ui_draw_fill_rect(lcd, &c, 0x0000);      /* letterbox base once */
+        ever_painted = true;
+    }
+    doom_video_blit(lcd, &c);                    /* scaled frame */
 }
 
 static void doom_app_destroy(arpile_app_ctx_t *ctx)

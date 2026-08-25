@@ -24,6 +24,9 @@ bool doom_engine_running(void);
  * scaled into `dst`. Called from the UI task only. */
 void doom_video_blit(ili9488_t *lcd, const ui_rect_t *dst);
 
+/* True once per newly produced engine frame (consumes the flag). */
+bool doom_video_take_frame(void);
+
 /* Feed one key event into the engine (HID-task safe).
  * down=true for press, false for release. */
 void doom_input_post(bool down, int doom_key);

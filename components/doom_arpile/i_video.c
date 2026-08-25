@@ -144,13 +144,20 @@ void I_UpdateVideoMode(void)
 
 void doom_video_blit(ili9488_t *lcd, const ui_rect_t *dst)
 {
-    if (!s_frame_ready || !s_rgb_fb || lcd == NULL || dst == NULL) {
+    if (!s_rgb_fb || lcd == NULL || dst == NULL) {
         return;
     }
     xSemaphoreTake(s_fb_mux, portMAX_DELAY);
     ili9488_draw_pixels(lcd, s_rgb_fb, dst->x, dst->y, dst->w, dst->h,
                         0, 0, SCREENWIDTH, SCREENHEIGHT, SCREENWIDTH);
     xSemaphoreGive(s_fb_mux);
-    /* Keep the frame flagged: window repaints (focus changes etc.) should
-     * restore the game image rather than draw garbage. */
+}
+
+bool doom_video_take_frame(void)
+{
+    if (!s_frame_ready) {
+        return false;
+    }
+    s_frame_ready = false;
+    return true;
 }

@@ -84,6 +84,14 @@ int doom_main(int argc, char const *const *argv)
 
 static void doom_engine_task(void *arg)
 {
+    /* PrBoom init/game prints flood the file_xfer console tap, whose TX queue
+     * then wedges both cores. Engine chatter goes to the void; system logs
+     * (ESP_LOGx) are a separate path and stay visible. */
+    if (!freopen("/dev/null", "w", stdout)) {
+        ESP_LOGW(TAG, "stdout redirect failed");
+    }
+    setvbuf(stdout, NULL, _IONBF, 0);
+
     char const *argv[] = { "doom", "-cout", "ICWEFDA", NULL };
     doom_main(3, argv);
     doom_engine_exit_hook(0);   /* clean end without I_Quit */
@@ -106,8 +114,10 @@ esp_err_t doom_engine_start(void)
         return err;
     }
 
-    if (xTaskCreatePinnedToCore(doom_engine_task, "doomEngine", 28672,
-                                NULL, 5, &s_engine_task, 1) != pdPASS) {
+    /* Unpinned + low priority: PrBoom's init/game loop is long pure-compute
+     * stretches; pinning/starving it above system tasks froze USB HID. */
+    if (xTaskCreate(doom_engine_task, "doomEngine", 28672,
+                    NULL, 3, &s_engine_task) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
     return ESP_OK;
