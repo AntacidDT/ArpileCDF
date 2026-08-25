@@ -1,3 +1,3 @@
-idf_component_register(SRCS "lcd_text.c"
+idf_component_register(SRCS
                     INCLUDE_DIRS "."
                     REQUIRES ili9488)

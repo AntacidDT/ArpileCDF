@@ -1,3 +1,3 @@
-idf_component_register(SRCS "file_xfer.c"
+idf_component_register(SRCS
                     INCLUDE_DIRS "."
                     REQUIRES esp_driver_uart esp_driver_usb_serial_jtag fatfs vfs esp_rom)
