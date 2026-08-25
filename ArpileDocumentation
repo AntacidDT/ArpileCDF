@@ -1,0 +1,42 @@
+Arpile 32CDF is the firmware for the Arpile Cyberdeck Project.
+
+Microcontroller Unit: Waveshare ESP32 P4 Nano
+Display: ILI9488 3.5" 480x320
+Audio codec chip: ES8311 (integrated into the ESP32 P4 Nano board)
+Additional Storage: MicroSD card (slot integrated into the ESP32 P4 Nano board)
+Input method: Keyboard (using USB-A)
+
+ESP-IDF Based
+
+Display wiring:
+CS   → GPIO23
+RST  → GPIO4
+DC   → GPIO20
+MOSI → GPIO5
+SCK  → GPIO21
+LED  → GPIO22
+
+Rules:
+- Treat this document as the source of truth for the hardware configuration.
+- Do not change GPIO assignments without explicit approval.
+- Do not add hardware components or peripherals without explicit approval.
+- Do not modify working hardware drivers unnecessarily.
+- Keep hardware-specific code isolated and modular.
+- Test hardware components independently before integrating them into the main firmware.
+- Do not assume undocumented hardware capabilities; verify them first.
+- Prefer ESP-IDF APIs and existing project components over unnecessary custom implementations.
+- The Device should be capable of being independent from the SD card.
+
+What features needed: 
+Terminal (Linux based), should allow you to access everything from it. 
+Miniature VSCode for coding.
+WiFi
+Custom Commands
+DOOM game
+SSH
+Media capability (play songs and videos using MJPEG Format, look at images using JPEG format bcz of the board having integrated media capability and JPEG/H.264 accelerator and decoder.)
+
+What layout i want: 
+I want a KDE like layout when you boot the system, with easy customization features. it should feel and work like a Linux mini computer.
+
+

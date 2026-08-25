@@ -1,0 +1,6 @@
+.agent/
+build/
+managed_components/
+sdkconfig.old
+sdkconfig.bak.*
+__pycache__/
