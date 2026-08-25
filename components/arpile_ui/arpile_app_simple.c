@@ -56,6 +56,5 @@ static const arpile_app_ops_t simple_ops = {
         .id = #id_, .name = name_, .icon = icon_, .ops = &simple_ops,          \
     };
 
-SIMPLE_APP(doom_app, "DOOM", "doom")
 SIMPLE_APP(voxel, "Voxel", "voxel")
 SIMPLE_APP(slotsim, "Slot", "slotsim")

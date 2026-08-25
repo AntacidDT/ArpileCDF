@@ -1,0 +1,18 @@
+# Place PrBoom static data/BSS in external PSRAM to relieve internal SRAM.
+[scheme:prboom_psram]
+entries:
+    if APP_BUILD_USE_FLASH_SECTIONS = y:
+        text -> flash_text
+        rodata -> flash_rodata
+    else:
+        text -> iram0_text
+        rodata -> dram0_data
+    data -> dram0_data
+    bss -> extern_ram
+    common -> extern_ram
+    legacy_bss -> extern_ram
+
+[mapping:prboom]
+archive: libprboom.a
+entries:
+    * (prboom_psram)
