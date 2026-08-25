@@ -192,10 +192,7 @@ static void key_event_callback(key_event_t *key_event)
         ev.key.modifier = key_event->modifier;
         ev.key.ascii = hid_keycode_to_ascii(key_event->key_code, key_event->modifier);
         notify_event(&ev);
-        if (key_event->key_code > 0x65) {
-            printf("[KEYDBG] code=0x%02X mod=0x%02X\r\n",
-                   key_event->key_code, key_event->modifier);
-        }
+        // [KEYDBG] disabled: floods console under load (DOOM integration)
     }
 }
 

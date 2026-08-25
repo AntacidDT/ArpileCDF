@@ -32,8 +32,11 @@ static void doom_app_update(arpile_app_ctx_t *ctx)
             return;
         }
     }
-    /* Repaint only when the engine produced a new frame. */
-    if (doom_video_take_frame()) {
+    /* Repaint on new frames, capped ~20 fps (SPI scan is the bottleneck). */
+    static TickType_t last_paint;
+    TickType_t now = xTaskGetTickCount();
+    if (now - last_paint >= pdMS_TO_TICKS(50) && doom_video_take_frame()) {
+        last_paint = now;
         arpile_ui_win_redraw(ctx->win);
     }
 }
@@ -57,13 +60,19 @@ static void doom_app_render(arpile_app_ctx_t *ctx, ui_win_t *win)
     if (!lcd) {
         return;
     }
+    /* Native 320x240, centred: unscaled blit keeps SPI traffic (and the
+     * visible per-frame scan) minimal on this 60 MHz panel link. */
+    enum { GW = 320, GH = 240 };
     ui_rect_t c = win_client_rect(win);
     static bool ever_painted;
     if (!ever_painted) {
         ui_draw_fill_rect(lcd, &c, 0x0000);      /* letterbox base once */
         ever_painted = true;
     }
-    doom_video_blit(lcd, &c);                    /* scaled frame */
+    int16_t gx = (int16_t)(c.x + (c.w - GW) / 2);
+    int16_t gy = (int16_t)(c.y + (c.h - GH) / 2);
+    ui_rect_t g = { (uint16_t)gx, (uint16_t)gy, GW, GH };
+    doom_video_blit(lcd, &g);
 }
 
 static void doom_app_destroy(arpile_app_ctx_t *ctx)

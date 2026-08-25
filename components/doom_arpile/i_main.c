@@ -106,7 +106,9 @@ esp_err_t doom_engine_start(void)
     s_done = xSemaphoreCreateBinary();
 
     extern esp_err_t doom_wad_load(void);
+    ESP_LOGI(TAG, "loading WAD...");
     esp_err_t err = doom_wad_load();
+    ESP_LOGI(TAG, "WAD load: %s", esp_err_to_name(err));
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "DOOM1.WAD load failed: %s", esp_err_to_name(err));
         vSemaphoreDelete(s_done);
