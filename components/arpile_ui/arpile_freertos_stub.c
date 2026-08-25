@@ -1,12 +1,14 @@
-/* Weak implementation of uxTaskGetSystemState to allow linking.
-   Provides a minimal stub since the full FreeRTOS task stats may not be enabled.
-   This is provided because the arpile_ui component's sysmon application
-   calls this function. */
+/* Weak fallback for uxTaskGetSystemState: only links if FreeRTOS task-stats
+ * are disabled in sdkconfig; a real implementation always overrides this. */
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
-typedef unsigned long UBaseType_t;
-
-UBaseType_t uxTaskGetSystemState(void)
+__attribute__((weak)) UBaseType_t uxTaskGetSystemState(
+    TaskStatus_t *const pxTaskStatusArray,
+    const UBaseType_t uxArraySize,
+    configRUN_TIME_COUNTER_TYPE *const pulTotalRunTime)
 {
-    /* Return 0 indicating no task state available. */
+    (void)pxTaskStatusArray;
+    (void)pulTotalRunTime;
     return 0;
 }
