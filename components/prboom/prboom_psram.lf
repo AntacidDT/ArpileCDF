@@ -1,4 +1,5 @@
-# Place PrBoom static data/BSS in external PSRAM to relieve internal SRAM.
+# Place PrBoom static data/BSS in external PSRAM (only when PSRAM ext-BSS is
+# available); falls back to default DRAM placement otherwise.
 [scheme:prboom_psram]
 entries:
     if APP_BUILD_USE_FLASH_SECTIONS = y:
@@ -7,10 +8,10 @@ entries:
     else:
         text -> iram0_text
         rodata -> dram0_data
-    data -> dram0_data
-    bss -> extern_ram
-    common -> extern_ram
-    legacy_bss -> extern_ram
+    if SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY = y:
+        bss -> extern_ram
+        common -> extern_ram
+        legacy_bss -> extern_ram
 
 [mapping:prboom]
 archive: libprboom.a
