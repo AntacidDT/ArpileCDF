@@ -85,7 +85,7 @@ void app_main(void)
         .gpio_dc   = PIN_LCD_DC,
         .gpio_rst  = PIN_LCD_RST,
         .gpio_led  = PIN_LCD_LED,
-        .spi_clock_hz = 80000000,   /* DOOM: approved bump */
+        .spi_clock_hz = 60000000,   /* board limit: 80M shows static */
         .spi_max_transfer_size = 4096,
     };
 
