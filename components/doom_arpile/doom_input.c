@@ -45,6 +45,14 @@ void doom_input_poll(void)
 int doom_input_translate(uint16_t arpile_keycode)
 {
     switch (arpile_keycode) {
+    case ARPILE_KEY_W:       return key_up;
+    case ARPILE_KEY_S:       return key_down;
+    case ARPILE_KEY_D:       return key_straferight;
+    case ARPILE_KEY_A:       return key_strafeleft;
+    case ARPILE_KEY_O:       return key_left;
+    case ARPILE_KEY_P:       return key_right;
+    case ARPILE_KEY_E:       return key_fire;
+    case ARPILE_KEY_SPACE:   return key_fire;
     case ARPILE_KEY_UP:      return key_up;
     case ARPILE_KEY_DOWN:    return key_down;
     case ARPILE_KEY_LEFT:    return key_left;
@@ -52,14 +60,8 @@ int doom_input_translate(uint16_t arpile_keycode)
     case ARPILE_KEY_ENTER:   return key_menu_enter;
     case ARPILE_KEY_ESCAPE:  return key_menu_escape;
     case ARPILE_KEY_BACKSPACE: return key_menu_backspace;
-    case ARPILE_KEY_SPACE:   return key_use;
-    case ARPILE_KEY_W:       return key_up;
-    case ARPILE_KEY_S:       return key_down;
-    case ARPILE_KEY_A:       return key_strafeleft;
-    case ARPILE_KEY_D:       return key_straferight;
     default: break;
     }
-    /* printable ASCII passes straight through (weapons 1-6, Tab, etc.) */
     if (arpile_keycode >= 0x04 && arpile_keycode <= 0x1D) {
         return 'a' + (arpile_keycode - 0x04);
     }
@@ -67,15 +69,12 @@ int doom_input_translate(uint16_t arpile_keycode)
         const char digits[10] = { '9', '8', '7', '6', '5', '4', '3', '2', '1', '0' };
         int idx = arpile_keycode - 0x1E;
         if (idx <= 5) {
-            return '1' + idx;         /* keys 1..6 select weapons */
+            return '1' + idx;
         }
         return digits[idx];
     }
-    if (arpile_keycode == 0x2B) {     /* Tab */
+    if (arpile_keycode == 0x2B) {
         return key_map ? key_map : '\t';
-    }
-    if (arpile_keycode == 0x2C) {     /* Space handled above */
-        return key_use;
     }
     return 0;
 }

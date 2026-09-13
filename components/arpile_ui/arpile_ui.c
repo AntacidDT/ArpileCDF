@@ -946,6 +946,15 @@ static void handle_mouse(const arpile_input_event_t *ev)
             push_dirty(&(ui_rect_t){ 12, 18, (uint16_t)(UI_W - 24), (uint16_t)(UI_H - UI_PANEL_H - 28) });
             return;
         }
+        /* Wheel scrolls the focused window (e.g. voxel hotbar slot selector).
+         * The event union shares storage: never rewrite mouse.x/y of a wheel
+         * event or it clobbers `wheel`. */
+        for (ui_win_t *w = s_head; w; w = w->next) {
+            if (w->state.focused && w->ops.on_mouse) {
+                w->ops.on_mouse(w, ev);
+                break;
+            }
+        }
         return;
     }
 
@@ -1043,6 +1052,16 @@ static void handle_mouse(const arpile_input_event_t *ev)
                 ny = UI_H - UI_PANEL_H - (int)s_drag_win->state.rect.h - UI_WIN_TITLE_H;
             }
             arpile_ui_win_move(s_drag_win, nx, ny);
+        } else {
+            /* Mouse-look: while not dragging, forward raw deltas to the
+             * focused window (e.g. the voxel first-person view). Deltas are
+             * window-independent, so there is nothing to translate. */
+            for (ui_win_t *w = s_head; w; w = w->next) {
+                if (w->state.focused && w->ops.on_mouse) {
+                    w->ops.on_mouse(w, ev);
+                    break;
+                }
+            }
         }
     }
 }
@@ -1143,5 +1162,8 @@ esp_err_t arpile_ui_start(ili9488_t *lcd)
     s_started = true;
     push_dirty_full();
     composite();   /* draw the desktop immediately */
+
+    /* Boot straight into the voxel demo app (acceptance criterion). */
+    arpile_app_launch("voxel");
     return ESP_OK;
 }

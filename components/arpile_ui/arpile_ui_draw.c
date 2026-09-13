@@ -162,6 +162,26 @@ void ui_fb_flush(ili9488_t *lcd, const ui_rect_t *r)
                         c.x, c.y, c.w, c.h, UI_W);
 }
 
+/* Blit a packed RGB666 source (3 bytes/pixel, row-major) into the RGB565
+ * compositor framebuffer, converting on the fly.  Clipped to the screen. */
+void ui_fb_write_rgb666(const uint8_t *src, uint16_t x, uint16_t y,
+                        uint16_t w, uint16_t h)
+{
+    for (uint16_t r = 0; r < h; r++) {
+        uint16_t dy = y + r;
+        if (dy >= UI_H) break;
+        for (uint16_t c = 0; c < w; c++) {
+            uint16_t dx = x + c;
+            if (dx >= UI_W) break;
+            const uint8_t *px = &src[(r * w + c) * 3];
+            uint16_t rgb565 = (uint16_t)(((px[0] >> 3) << 11) |
+                                          ((px[1] >> 2) << 5)  |
+                                           (px[2] >> 3));
+            s_fb[dy * UI_W + dx] = rgb565;
+        }
+    }
+}
+
 void ui_draw_fill_rect(ili9488_t *lcd, const ui_rect_t *r, uint16_t color)
 {
     (void)lcd;

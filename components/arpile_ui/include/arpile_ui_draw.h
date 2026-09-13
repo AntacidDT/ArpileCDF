@@ -26,6 +26,8 @@ void ui_fb_blit(const uint16_t *img, uint16_t x, uint16_t y,
                 uint16_t w, uint16_t h,
                 uint16_t src_x, uint16_t src_y, uint16_t src_w, uint16_t src_h,
                 uint16_t img_w);
+void ui_fb_write_rgb666(const uint8_t *src, uint16_t x, uint16_t y,
+                        uint16_t w, uint16_t h);
 void ui_fb_flush(ili9488_t *lcd, const ui_rect_t *r);
 
 void ui_draw_fill_rect(ili9488_t *lcd, const ui_rect_t *r, uint16_t color);

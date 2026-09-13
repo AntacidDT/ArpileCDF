@@ -60,27 +60,21 @@ static void doom_app_render(arpile_app_ctx_t *ctx, ui_win_t *win)
     if (!lcd) {
         return;
     }
-    /* Native 320x240, centred: unscaled blit keeps SPI traffic (and the
-     * visible per-frame scan) minimal on this 60 MHz panel link. */
-    enum { GW = 320, GH = 240 };
     ui_rect_t c = win_client_rect(win);
-    static bool ever_painted;
-    if (!ever_painted) {
-        ui_draw_fill_rect(lcd, &c, 0x0000);      /* letterbox base once */
-        ever_painted = true;
-    }
-    int16_t gx = (int16_t)(c.x + (c.w - GW) / 2);
-    int16_t gy = (int16_t)(c.y + (c.h - GH) / 2);
-    ui_rect_t g = { (uint16_t)gx, (uint16_t)gy, GW, GH };
-    doom_video_blit(lcd, &g);
+    doom_video_blit(lcd, &c);
 }
 
 static void doom_app_destroy(arpile_app_ctx_t *ctx)
 {
     if (ctx->user && ((doom_state_t *)ctx->user)->engine_started) {
         doom_engine_stop();
-        extern void doom_wad_unload(void);
-        doom_wad_unload();
+        /* Only unload WAD if the engine actually exited. If it didn't,
+         * unloading would free memory the engine task is still using. */
+        extern bool doom_engine_running(void);
+        if (!doom_engine_running()) {
+            extern void doom_wad_unload(void);
+            doom_wad_unload();
+        }
     }
     free(ctx->user);
     ctx->user = NULL;

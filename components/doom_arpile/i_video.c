@@ -1,5 +1,5 @@
-/* Video adapter: engine's 320x240 8-bit palette framebuffer → RGB565 buffer
- * → scaled blit through the existing ILI9488 pipeline. Replaces esp32-doom's
+/* Video adapter: engine's 320x240 8-bit palette framebuffer → RGB565 LUT
+ * → scaled blit through the UI compositor framebuffer. Replaces esp32-doom's
  * spi_lcd.c entirely; no second display driver exists here. */
 #include <stdlib.h>
 #include <string.h>
@@ -20,21 +20,25 @@
 #include "freertos/semphr.h"
 #include "esp_heap_caps.h"
 #include "esp_cache.h"
+#include "esp_log.h"
 
 #include "ili9488.h"
 #include "arpile_ui_core.h"
+#include "arpile_ui_draw.h"
 #include "doom_arpile.h"
+
+static const char *TAG = "doom_vid";
 
 int use_fullscreen = 0;
 int use_doublebuffer = 0;
 
 static uint8_t  *s_pal_fb;      /* 320x240 palette8, written by engine */
-static uint8_t  *s_666_fb;      /* 320x240 packed RGB666, DMA/streamed */
+static uint16_t *s_565_fb;      /* 320x240 RGB565, converted from palette */
 static volatile bool s_frame_ready;
 static SemaphoreHandle_t s_fb_mux;
 
-/* RGB666 byte-triplet lookup built by I_SetPalette from PLAYPAL */
-static uint8_t s_lut666[256 * 3];
+/* RGB565 lookup built by I_SetPalette from PLAYPAL */
+static uint16_t s_lut565[256];
 
 void I_StartTic(void)
 {
@@ -59,19 +63,20 @@ void I_EndDisplay(void) {}
 /* Engine finished a frame: convert palette→RGB565 and mark ready. */
 void I_FinishUpdate(void)
 {
-    if (!s_pal_fb || !s_666_fb || !s_fb_mux) {
+    if (!s_pal_fb || !s_565_fb || !s_fb_mux) {
         return;
     }
     xSemaphoreTake(s_fb_mux, portMAX_DELAY);
     const int n = SCREENWIDTH * SCREENHEIGHT;
     for (int i = 0; i < n; i++) {
-        const uint8_t *lut = &s_lut666[s_pal_fb[i] * 3];
-        s_666_fb[i * 3]     = lut[0];
-        s_666_fb[i * 3 + 1] = lut[1];
-        s_666_fb[i * 3 + 2] = lut[2];
+        s_565_fb[i] = s_lut565[s_pal_fb[i]];
     }
     xSemaphoreGive(s_fb_mux);
     s_frame_ready = true;
+    static int dbg_frames;
+    if ((dbg_frames++ % 60) == 0) {
+        ESP_LOGI(TAG, "frame %d converted", dbg_frames);
+    }
 }
 
 void I_SetPalette(int pal)
@@ -80,10 +85,10 @@ void I_SetPalette(int pal)
     const byte *palette = W_CacheLumpNum(pplump);
     palette += pal * (3 * 256);
     for (int i = 0; i < 256; i++) {
-        /* RGB666: expand 6-bit fields to 8 bits (r<<2|r>>4 pattern) */
-        s_lut666[i * 3]     = (palette[0] << 2) | (palette[0] >> 4);
-        s_lut666[i * 3 + 1] = (palette[1] << 2) | (palette[1] >> 4);
-        s_lut666[i * 3 + 2] = (palette[2] << 2) | (palette[2] >> 4);
+        uint16_t r5 = (palette[0] >> 3) & 0x1F;
+        uint16_t g6 = (palette[1] >> 2) & 0x3F;
+        uint16_t b5 = (palette[2] >> 3) & 0x1F;
+        s_lut565[i] = (r5 << 11) | (g6 << 5) | b5;
         palette += 3;
     }
     W_UnlockLumpNum(pplump);
@@ -91,6 +96,10 @@ void I_SetPalette(int pal)
 
 void I_PreInitGraphics(void)
 {
+    ESP_LOGI(TAG, "I_PreInitGraphics: alloc %dx%d paletter=%d rgb565=%d",
+             SCREENWIDTH, SCREENHEIGHT,
+             SCREENWIDTH * SCREENHEIGHT,
+             SCREENWIDTH * SCREENHEIGHT * (int)sizeof(uint16_t));
     if (!s_fb_mux) {
         s_fb_mux = xSemaphoreCreateMutex();
     }
@@ -98,8 +107,8 @@ void I_PreInitGraphics(void)
         s_pal_fb = heap_caps_malloc(SCREENWIDTH * SCREENHEIGHT,
                                     MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     }
-    if (!s_666_fb) {
-        s_666_fb = heap_caps_aligned_alloc(64, SCREENWIDTH * SCREENHEIGHT * 3,
+    if (!s_565_fb) {
+        s_565_fb = heap_caps_aligned_alloc(64, SCREENWIDTH * SCREENHEIGHT * sizeof(uint16_t),
                                            MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     }
 }
@@ -150,15 +159,27 @@ void I_UpdateVideoMode(void)
 
 void doom_video_blit(ili9488_t *lcd, const ui_rect_t *dst)
 {
-    if (!s_666_fb || lcd == NULL || dst == NULL) {
+    (void)lcd;
+    if (!s_565_fb || dst == NULL) {
         return;
     }
     xSemaphoreTake(s_fb_mux, portMAX_DELAY);
-    /* PSRAM is DMA-capable on P4 but cache-backed: push our writes out. */
-    esp_cache_msync((void *)s_666_fb, SCREENWIDTH * SCREENHEIGHT * 3,
+    esp_cache_msync((void *)s_565_fb, SCREENWIDTH * SCREENHEIGHT * sizeof(uint16_t),
                     ESP_CACHE_MSYNC_FLAG_DIR_C2M);
-    ili9488_blit_rgb666_stream(lcd, s_666_fb, dst->x, dst->y, dst->w, dst->h);
+    /* Blit and scale 320x240 → dst using nearest-neighbour via the UI
+     * compositor framebuffer.  The compositor will flush to the panel. */
+    ui_fb_blit(s_565_fb,
+               dst->x, dst->y, dst->w, dst->h,     /* dest rect */
+               0, 0, SCREENWIDTH, SCREENHEIGHT,     /* source rect */
+               SCREENWIDTH);                        /* source stride */
     xSemaphoreGive(s_fb_mux);
+    static bool dbg_done;
+    if (!dbg_done) {
+        dbg_done = true;
+        ESP_LOGI(TAG, "first blit: %dx%d → %dx%d at (%d,%d)",
+                 SCREENWIDTH, SCREENHEIGHT, dst->w, dst->h,
+                 dst->x, dst->y);
+    }
 }
 
 bool doom_video_take_frame(void)

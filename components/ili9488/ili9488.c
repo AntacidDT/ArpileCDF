@@ -405,7 +405,9 @@ esp_err_t ili9488_fill_screen(ili9488_t *dev, uint16_t color)
     return ili9488_fill_rect(dev, 0, 0, ILI9488_WIDTH, ILI9488_HEIGHT, color);
 }
 
-/* DOOM integration: pipelined raw RGB666 streaming blit (additive). */
+/* DOOM integration: synchronous RGB666 blit via spi_device_transmit.
+ * Proven path — same pattern as ili9488_fill_rect but reads pre-converted
+ * RGB666 data directly instead of generating it from RGB565. */
 esp_err_t ili9488_blit_rgb666_stream(ili9488_t *dev, const uint8_t *rgb666,
                                      uint16_t x, uint16_t y,
                                      uint16_t w, uint16_t h)
@@ -425,33 +427,23 @@ esp_err_t ili9488_blit_rgb666_stream(ili9488_t *dev, const uint8_t *rgb666,
     ESP_RETURN_ON_ERROR(ili9488_write_data(dev, pa, 4), TAG, "PA data");
     ESP_RETURN_ON_ERROR(ili9488_write_cmd(dev, 0x2C), TAG, "RAMWR");
 
-    const size_t chunk_bytes = 3840;             /* 1280 px, <= max_transfer */
+    const size_t chunk_bytes = dev->chunk_size > 0 ? dev->chunk_size : 4096;
+    /* Align to 3-byte pixels */
+    size_t chunk_px = chunk_bytes / 3;
+    if (chunk_px == 0) chunk_px = 1;
+    size_t aligned_chunk = chunk_px * 3;
     const size_t total = (size_t)w * h * 3;
-    const int INFLIGHT = 8;                      /* matches device queue_size */
 
-    size_t off = 0;
-    int inflight = 0;
     gpio_set_level(dev->gpio_dc, 1);
-    while (off < total || inflight > 0) {
-        if (off < total && inflight < INFLIGHT) {
-            size_t len = total - off;
-            if (len > chunk_bytes) len = chunk_bytes;
-            spi_transaction_t *t = calloc(1, sizeof(*t));
-            if (t == NULL) return ESP_ERR_NO_MEM;
-            t->length = len * 8;
-            t->tx_buffer = rgb666 + off;
-            t->user = NULL;
-            esp_err_t e = spi_device_queue_trans(dev->spi, t, portMAX_DELAY);
-            if (e != ESP_OK) { free(t); return e; }
-            off += len;
-            inflight++;
-        } else {
-            spi_transaction_t *rt;
-            esp_err_t e = spi_device_get_trans_result(dev->spi, &rt, portMAX_DELAY);
-            free(rt);
-            if (e != ESP_OK) return e;
-            inflight--;
-        }
+    size_t off = 0;
+    while (off < total) {
+        size_t len = total - off;
+        if (len > aligned_chunk) len = aligned_chunk;
+        spi_transaction_t t = { 0 };
+        t.length   = len * 8;
+        t.tx_buffer = rgb666 + off;
+        ESP_RETURN_ON_ERROR(spi_device_transmit(dev->spi, &t), TAG, "pixel stream");
+        off += len;
     }
     return ESP_OK;
 }

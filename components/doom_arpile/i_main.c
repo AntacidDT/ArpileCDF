@@ -23,8 +23,11 @@ static SemaphoreHandle_t s_done;
 void doom_engine_exit_hook(int rc)
 {
     ESP_LOGI(TAG, "engine exit(%d)", rc);
-    xSemaphoreGive(s_done);
+    TaskHandle_t t = s_engine_task;
     s_engine_task = NULL;
+    if (s_done) {
+        xSemaphoreGive(s_done);
+    }
     vTaskDelete(NULL);
     for (;;) { } /* not reached */
 }
@@ -84,16 +87,14 @@ int doom_main(int argc, char const *const *argv)
 
 static void doom_engine_task(void *arg)
 {
-    /* PrBoom init/game prints flood the file_xfer console tap, whose TX queue
-     * then wedges both cores. Engine chatter goes to the void; system logs
-     * (ESP_LOGx) are a separate path and stay visible. */
-    if (!freopen("/dev/null", "w", stdout)) {
-        ESP_LOGW(TAG, "stdout redirect failed");
-    }
-    setvbuf(stdout, NULL, _IONBF, 0);
-
+    ESP_LOGI(TAG, "engine task started");
+    /* stdout redirect removed: it blocked on UART TX flush. PrBoom's printf
+     * output is harmless with file_xfer disabled; ESP_LOGI goes through the
+     * esp_log system independently. */
     char const *argv[] = { "doom", "-cout", "ICWEFDA", NULL };
+    ESP_LOGI(TAG, "calling doom_main...");
     doom_main(3, argv);
+    ESP_LOGI(TAG, "doom_main returned");
     doom_engine_exit_hook(0);   /* clean end without I_Quit */
 }
 
@@ -101,6 +102,11 @@ esp_err_t doom_engine_start(void)
 {
     if (s_engine_task) {
         return ESP_ERR_INVALID_STATE;
+    }
+    /* Clean up any leftover state from a previous run. */
+    if (s_done) {
+        vSemaphoreDelete(s_done);
+        s_done = NULL;
     }
     s_stop_req = false;
     s_done = xSemaphoreCreateBinary();
@@ -142,11 +148,9 @@ void doom_engine_stop(void)
     vTaskDelay(pdMS_TO_TICKS(100));
     doom_input_post(false, key_quit);
     xSemaphoreTake(s_done, pdMS_TO_TICKS(3000));
-    s_engine_task = NULL;
-    if (s_done) {
-        vSemaphoreDelete(s_done);
-        s_done = NULL;
-    }
+    /* Do NOT free s_done here — the engine task may still reference it via
+     * doom_engine_exit_hook.  Clean up is deferred to doom_engine_start()
+     * which re-creates everything fresh. */
 }
 
 bool doom_engine_running(void)

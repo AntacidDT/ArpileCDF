@@ -32,6 +32,7 @@ extern "C" {
 #define ARPILE_KEY_A         0x04
 #define ARPILE_KEY_E         0x08
 #define ARPILE_KEY_F1        0x3A
+#define ARPILE_KEY_F2        0x3B
 #define ARPILE_KEY_F4        0x3D
 #define ARPILE_KEY_F5        0x3E
 #define ARPILE_KEY_F7        0x40
@@ -39,6 +40,19 @@ extern "C" {
 #define ARPILE_KEY_W         0x1A
 #define ARPILE_KEY_S         0x16
 #define ARPILE_KEY_D         0x07
+#define ARPILE_KEY_Q         0x14
+#define ARPILE_KEY_O         0x12
+#define ARPILE_KEY_P         0x13
+#define ARPILE_KEY_L         0x0F
+/* Top-row digits (HID keyboard/1..8). */
+#define ARPILE_KEY_1         0x1E
+#define ARPILE_KEY_2         0x1F
+#define ARPILE_KEY_3         0x20
+#define ARPILE_KEY_4         0x21
+#define ARPILE_KEY_5         0x22
+#define ARPILE_KEY_6         0x23
+#define ARPILE_KEY_7         0x24
+#define ARPILE_KEY_8         0x25
 
 /* HID modifier bit masks (LEFT_CTRL=0x01, LEFT_SHIFT=0x02, LEFT_ALT=0x04 ...) */
 #define ARPILE_MOD_LCTRL   0x01
@@ -53,7 +67,7 @@ extern "C" {
 typedef enum {
     ARPILE_IN_EVENT_KEY_DOWN,     /* raw key press (keycode in `key`) */
     ARPILE_IN_EVENT_KEY_UP,       /* raw key release */
-    ARPILE_IN_EVENT_MOUSE_MOVE,   /* pointer moved (abs pos in `mouse`) */
+    ARPILE_IN_EVENT_MOUSE_MOVE,   /* pointer moved (relative deltas in `mouse`) */
     ARPILE_IN_EVENT_MOUSE_BTN,    /* button state changed (press/release) */
     ARPILE_IN_EVENT_MOUSE_WHEEL,  /* scroll wheel (`wheel` signed clicks) */
 } arpile_input_event_type_t;
@@ -70,7 +84,7 @@ typedef struct {
             char     ascii;       /* printable char, or 0 for non-printable */
         } key;
         struct {
-            int  x, y;            /* absolute pointer position on 480x320 */
+            int  x, y;            /* relative displacement (deltas from driver) */
             uint8_t buttons;      /* ARPILE_MOUSE_BTN_* bitmask */
         } mouse;
         int wheel;                /* ARPILE_IN_EVENT_MOUSE_WHEEL: +up / -down */

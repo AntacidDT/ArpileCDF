@@ -42,7 +42,7 @@ static voice_t s_voices[VOICES];
 static SemaphoreHandle_t s_mux;
 static volatile bool s_audio_on;
 
-int snd_card = 0, mus_card = 0;
+int snd_card = 1, mus_card = 0;
 int snd_samplerate = OUT_RATE;
 
 void I_UpdateSoundParams(int handle, int volume, int seperation, int pitch)
@@ -183,7 +183,8 @@ static void doom_audio_task(void *arg)
             }
             if (acc > 127)  { acc = 127; }
             if (acc < -128) { acc = -128; }
-            int16_t s = acc << 8;
+            /* ~40% master volume so SFX aren't deafening */
+            int16_t s = (int16_t)((acc * 5 / 12) << 8);
             buf[i * 2] = s;
             buf[i * 2 + 1] = s;
         }
